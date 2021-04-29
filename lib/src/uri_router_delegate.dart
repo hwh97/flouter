@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flouter/src/route_information.dart';
@@ -15,12 +16,11 @@ class FlouterRouterDelegate extends RouterDelegate<Uri>
 
   late final FlouterRouteManager flouterRouteManager;
 
-  FlouterRouterDelegate({
-    List<Uri>? initialUris,
-    required Map<RegExp, PageBuilder> routes,
-    PageBuilder? pageNotFound,
-    this.observers = const <NavigatorObserver>[]
-  }) {
+  FlouterRouterDelegate(
+      {List<Uri>? initialUris,
+        required Map<RegExp, PageBuilder> routes,
+        PageBuilder? pageNotFound,
+        this.observers = const <NavigatorObserver>[]}) {
     final _initialUris = initialUris ?? <Uri>[Uri(path: '/')];
     flouterRouteManager = FlouterRouteManager(
       routes: routes,
@@ -65,7 +65,9 @@ class FlouterRouterDelegate extends RouterDelegate<Uri>
             }
 
             if (uriRouteManager.routes.isNotEmpty) {
-              uriRouteManager.removeLastUri();
+              // print("onPopPage ${result}");
+              // uriRouteManager.removeLastUri();
+              uriRouteManager._removeLastUriWithValue(result);
               return true;
             }
 
@@ -92,6 +94,8 @@ class FlouterRouteManager extends ChangeNotifier {
 
   bool _skipNext = false;
   bool _shouldUpdate = true;
+  Completer<dynamic>? routerResultCompleter;
+  Uri? currentAwaitUri;
 
   /// give you a read only access
   /// to the [List] of [Page] you have in your navigator
@@ -155,6 +159,14 @@ class FlouterRouteManager extends ChangeNotifier {
   /// allow you one [Uri]
   Future<void> pushUri(Uri uri) => _setNewRoutePath(uri);
 
+  /// allow you one [Uri] and wait result
+  Future<T> pushUriAndWait<T>(Uri uri) async {
+    routerResultCompleter = Completer<T>();
+    currentAwaitUri = _internalUris.last;
+    await pushUri(uri);
+    return routerResultCompleter!.future as Future<T>;
+  }
+
   /// allow you clear the list of [pages] and then push an [Uri]
   Future<void> clearAndPushUri(Uri uri) {
     _internalPages.clear();
@@ -184,5 +196,54 @@ class FlouterRouteManager extends ChangeNotifier {
     _internalPages.removeLast();
     _internalUris.removeLast();
     notifyListeners();
+  }
+
+  /// Pop to a specific [Uri] and delete any page at the top
+  void removeUtilUri(Uri uri) {
+    final index = _internalUris.indexOf(uri);
+
+    _internalPages.removeRange(index + 1, _internalPages.length);
+    _internalUris.removeRange(index + 1, _internalUris.length);
+    notifyListeners();
+  }
+
+  /// Pop to a specific [Uri] and delete any page at the top and push [Uri]
+  void removeUtilUriAndPush(Uri popPath, Uri toPath) {
+    final index = _internalUris.indexOf(popPath);
+
+    _internalPages.removeRange(index + 1, _internalPages.length);
+    _internalUris.removeRange(index + 1, _internalUris.length);
+    pushUri(toPath);
+    // notifyListeners();
+  }
+
+  /// Pop to a specific [Uri] with [value] and delete any page at the top
+  void removeUtilUriWithValue(Uri uri, dynamic value) {
+    final index = _internalUris.indexOf(uri);
+
+    _internalPages.removeRange(index + 1, _internalPages.length);
+    _internalUris.removeRange(index + 1, _internalUris.length);
+
+    _completeValue(uri, value);
+    notifyListeners();
+  }
+
+  /// pop with value
+  void _removeLastUriWithValue(dynamic value) {
+    if (_internalUris.length >= 2) {
+      _completeValue(_internalUris[_internalUris.length - 2], value);
+    }
+    removeLastUri();
+  }
+
+  /// complete value
+  void _completeValue(Uri uri, dynamic value) {
+    if (uri.path == currentAwaitUri?.path &&
+        routerResultCompleter != null &&
+        !routerResultCompleter!.isCompleted) {
+      routerResultCompleter!.complete(value);
+      routerResultCompleter = null;
+      currentAwaitUri = null;
+    }
   }
 }
