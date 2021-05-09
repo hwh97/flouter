@@ -11,16 +11,17 @@ import 'package:provider/provider.dart';
 /// a [RouterDelegate] based on [Uri]
 class FlouterRouterDelegate extends RouterDelegate<Uri>
     with ChangeNotifier, PopNavigatorRouterDelegateMixin<Uri> {
-  final navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> navigatorKey;
   final List<NavigatorObserver> observers;
 
   late final FlouterRouteManager flouterRouteManager;
 
   FlouterRouterDelegate(
-      {List<Uri>? initialUris,
-        required Map<RegExp, PageBuilder> routes,
-        PageBuilder? pageNotFound,
-        this.observers = const <NavigatorObserver>[]}) {
+      {required this.navigatorKey,
+      required Map<RegExp, PageBuilder> routes,
+      List<Uri>? initialUris,
+      PageBuilder? pageNotFound,
+      this.observers = const <NavigatorObserver>[]}) {
     final _initialUris = initialUris ?? <Uri>[Uri(path: '/')];
     flouterRouteManager = FlouterRouteManager(
       routes: routes,
